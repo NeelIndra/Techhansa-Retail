@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, FileText, LogOut, User, Menu, X, ChevronDown, Shield, ShoppingCart, IndianRupee, Warehouse } from 'lucide-react';
+import { LayoutDashboard, Users, Package, FileText, LogOut, User, Menu, X, ChevronDown, Shield, ShoppingCart, IndianRupee, Warehouse, Bell } from 'lucide-react';
 import { AuthContext } from '../../../context/AuthContext';
 import { motion } from 'framer-motion';
 import logo from '../../../assets/logo.png';
@@ -36,6 +36,7 @@ export default function AdminLayout() {
     { name: 'Global Orders', path: '/admin/orders', icon: <ShoppingCart size={20} /> },
     { name: 'Payment Approvals', path: '/admin/finance', icon: <IndianRupee size={20} /> },
     { name: 'Audit Logs', path: '/admin/audit', icon: <FileText size={20} /> },
+    { name: 'Notifications', path: '/admin/notifications', icon: <Bell size={20} /> },
   ].filter(item => {
     if (user?.role === 'account_manager') {
       return item.name === 'Global Orders' || item.name === 'Audit Logs' || item.name === 'Inventory';
@@ -54,21 +55,23 @@ export default function AdminLayout() {
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const response = await axios.get('/api/notifications');
+        const adminId = user?.userId || 'admin123';
+        const response = await axios.get(`/api/notifications/${adminId}`);
         setNotifications(Array.isArray(response.data) ? response.data : []);
       } catch (err) {
         console.error('Failed to fetch notifications', err);
       }
     };
     fetchNotifications();
-  }, []);
+  }, [user]);
 
   const unreadCount = Array.isArray(notifications) ? notifications.filter(n => n.unread).length : 0;
 
   const handleMarkAllAsRead = async () => {
     if (!Array.isArray(notifications)) return;
     try {
-      await axios.patch('/api/notifications/read-all');
+      const adminId = user?.userId || 'admin123';
+      await axios.patch(`/api/notifications/${adminId}/read-all`);
       setNotifications(notifications.map(n => ({ ...n, unread: false })));
     } catch (err) {
       toast.error('Failed to mark notifications as read');
@@ -78,7 +81,8 @@ export default function AdminLayout() {
   const handleNotificationClick = async (id) => {
     if (!Array.isArray(notifications)) return;
     try {
-      await axios.patch(`/api/notifications/${id}/read`);
+      const adminId = user?.userId || 'admin123';
+      await axios.patch(`/api/notifications/${adminId}/${id}/read`);
       setNotifications(notifications.map(n => n._id === id ? { ...n, unread: false } : n));
     } catch (err) {
       console.error(err);

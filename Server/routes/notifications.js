@@ -65,4 +65,36 @@ router.post('/seed', async (req, res) => {
   }
 });
 
+// POST /api/notifications/broadcast
+// Broadcast notification to specific roles
+router.post('/broadcast', async (req, res) => {
+  try {
+    const { title, message, roles } = req.body;
+    if (!title || !message || !roles || !Array.isArray(roles)) {
+      return res.status(400).json({ message: 'Title, message, and an array of roles are required.' });
+    }
+
+    const User = require('../models/User');
+    const users = await User.find({ role: { $in: roles } });
+    
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'No users found for the selected roles.' });
+    }
+
+    const notifications = users.map(user => ({
+      userId: user.userId,
+      title,
+      message,
+      unread: true,
+      time: 'Just now' // Simplified for immediate display
+    }));
+
+    await Notification.insertMany(notifications);
+    res.json({ success: true, message: `Notification broadcasted to ${users.length} users.` });
+  } catch (err) {
+    console.error('Broadcast Error:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
 module.exports = router;

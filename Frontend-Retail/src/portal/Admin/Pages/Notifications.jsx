@@ -8,9 +8,9 @@ import { useContext } from 'react';
 
 export default function Notifications() {
   const { user } = useContext(AuthContext);
-  const [notifications, setNotifications] = useState([]);
+  const [broadcasts, setBroadcasts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('inbox');
+  const [activeTab, setActiveTab] = useState('history');
   
   // Broadcast Form State
   const [broadcastData, setBroadcastData] = useState({
@@ -21,39 +21,17 @@ export default function Notifications() {
   const [isBroadcasting, setIsBroadcasting] = useState(false);
 
   useEffect(() => {
-    fetchNotifications();
+    fetchBroadcasts();
   }, []);
 
-  const fetchNotifications = async () => {
+  const fetchBroadcasts = async () => {
     try {
-      const adminId = user?.userId || 'admin123';
-      const response = await axios.get(`/api/notifications/${adminId}`);
-      setNotifications(response.data);
+      const response = await axios.get('/api/notifications/broadcasts/history');
+      setBroadcasts(response.data);
     } catch (error) {
-      toast.error('Failed to load notifications');
+      toast.error('Failed to load broadcasts');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const markAsRead = async (id) => {
-    try {
-      const adminId = user?.userId || 'admin123';
-      await axios.patch(`/api/notifications/${adminId}/${id}/read`);
-      setNotifications(notifications.map(n => n._id === id ? { ...n, unread: false } : n));
-    } catch (error) {
-      toast.error('Failed to mark as read');
-    }
-  };
-
-  const markAllAsRead = async () => {
-    try {
-      const adminId = user?.userId || 'admin123';
-      await axios.patch(`/api/notifications/${adminId}/read-all`);
-      setNotifications(notifications.map(n => ({ ...n, unread: false })));
-      toast.success('All notifications marked as read');
-    } catch (error) {
-      toast.error('Failed to mark all as read');
     }
   };
 
@@ -77,7 +55,8 @@ export default function Notifications() {
       await axios.post('/api/notifications/broadcast', broadcastData);
       toast.success('Notification broadcasted successfully!');
       setBroadcastData({ title: '', message: '', roles: [] });
-      setActiveTab('inbox');
+      setActiveTab('history');
+      fetchBroadcasts();
     } catch (error) {
       toast.error('Failed to broadcast notification');
     } finally {
@@ -90,100 +69,90 @@ export default function Notifications() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
-            <Bell size={24} />
+            <Megaphone size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Notifications</h1>
-            <p className="text-slate-500 text-sm mt-1">Manage your alerts and broadcast messages</p>
+            <h1 className="text-2xl font-bold text-slate-800">Broadcasts</h1>
+            <p className="text-slate-500 text-sm mt-1">Manage and view your broadcasted messages</p>
           </div>
         </div>
-        {activeTab === 'inbox' && (
-          <button
-            onClick={markAllAsRead}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium transition-colors"
-          >
-            <Check size={18} />
-            Mark all as read
-          </button>
-        )}
       </div>
 
       {/* Tabs */}
       <div className="flex space-x-1 bg-slate-100/50 p-1 rounded-xl w-fit">
         <button
-          onClick={() => setActiveTab('inbox')}
+          onClick={() => setActiveTab('history')}
           className={`flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-lg transition-all ${
-            activeTab === 'inbox'
+            activeTab === 'history'
               ? 'bg-white text-indigo-600 shadow-sm'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
           }`}
         >
-          <Bell size={16} />
-          Inbox
+          <Clock size={16} />
+          History
         </button>
         <button
-          onClick={() => setActiveTab('broadcast')}
+          onClick={() => setActiveTab('new_broadcast')}
           className={`flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-lg transition-all ${
-            activeTab === 'broadcast'
+            activeTab === 'new_broadcast'
               ? 'bg-white text-indigo-600 shadow-sm'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
           }`}
         >
-          <Megaphone size={16} />
-          Broadcast
+          <Send size={16} />
+          New Broadcast
         </button>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[500px]">
-        {activeTab === 'inbox' ? (
+        {activeTab === 'history' ? (
           loading ? (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
             </div>
-          ) : notifications.length === 0 ? (
+          ) : broadcasts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-              <Bell size={48} className="mb-4 text-slate-300 opacity-50" />
-              <p className="text-lg font-medium">No notifications yet</p>
-              <p className="text-sm mt-1">You're all caught up!</p>
+              <Megaphone size={48} className="mb-4 text-slate-300 opacity-50" />
+              <p className="text-lg font-medium">No broadcasts yet</p>
+              <p className="text-sm mt-1">You haven't sent any broadcasts.</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {notifications.map((note, index) => (
+              {broadcasts.map((broadcast, index) => (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  key={note._id}
-                  className={`p-5 transition-colors ${note.unread ? 'bg-indigo-50/30 hover:bg-indigo-50/60' : 'hover:bg-slate-50'}`}
+                  key={broadcast._id}
+                  className="p-5 hover:bg-slate-50 transition-colors"
                 >
                   <div className="flex gap-4">
                     <div className="flex-shrink-0 mt-1">
-                      <div className={`w-3 h-3 rounded-full mt-1 ${note.unread ? 'bg-indigo-500 shadow-sm shadow-indigo-300' : 'bg-transparent'}`} />
+                      <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center">
+                        <Megaphone size={20} />
+                      </div>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex sm:items-center justify-between flex-col sm:flex-row gap-1 sm:gap-4 mb-1">
-                        <h4 className={`text-base font-semibold ${note.unread ? 'text-slate-900' : 'text-slate-700'}`}>
-                          {note.title}
+                        <h4 className="text-base font-semibold text-slate-800">
+                          {broadcast.title}
                         </h4>
                         <div className="flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
                           <Clock size={14} />
-                          {note.time}
+                          {new Date(broadcast.createdAt).toLocaleString()}
                         </div>
                       </div>
-                      <p className={`text-sm ${note.unread ? 'text-slate-700' : 'text-slate-500'}`}>
-                        {note.message}
+                      <p className="text-sm text-slate-600 mb-3">
+                        {broadcast.message}
                       </p>
                       
-                      {note.unread && (
-                        <div className="mt-3">
-                          <button
-                            onClick={() => markAsRead(note._id)}
-                            className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 px-2.5 py-1.5 rounded-md transition-colors"
-                          >
-                            <Check size={14} /> Mark as read
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {broadcast.roles.map((role, i) => (
+                          <span key={i} className="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-md capitalize">
+                            {role}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </motion.div>

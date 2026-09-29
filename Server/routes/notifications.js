@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Notification = require('../models/Notification');
+const Broadcast = require('../models/Broadcast');
 
 // Temporary simple auth check since we're keeping it aligned with admin
 // Depending on auth implementation, we might want to just get 'admin' notifications
@@ -65,6 +66,18 @@ router.post('/seed', async (req, res) => {
   }
 });
 
+// GET /api/notifications/broadcasts/history
+// Fetch all broadcast history
+router.get('/broadcasts/history', async (req, res) => {
+  try {
+    const broadcasts = await Broadcast.find().sort({ createdAt: -1 });
+    res.json(broadcasts);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
 // POST /api/notifications/broadcast
 // Broadcast notification to specific roles
 router.post('/broadcast', async (req, res) => {
@@ -90,6 +103,10 @@ router.post('/broadcast', async (req, res) => {
     }));
 
     await Notification.insertMany(notifications);
+
+    const newBroadcast = new Broadcast({ title, message, roles });
+    await newBroadcast.save();
+
     res.json({ success: true, message: `Notification broadcasted to ${users.length} users.` });
   } catch (err) {
     console.error('Broadcast Error:', err);

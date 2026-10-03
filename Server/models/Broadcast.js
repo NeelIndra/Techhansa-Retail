@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
 
 const broadcastSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  message: { type: String, required: true },
+  title: { type: String },
+  message: { type: String },
   roles: [{ type: String }],
+  posterUrl: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 

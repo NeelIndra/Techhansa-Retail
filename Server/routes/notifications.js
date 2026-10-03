@@ -2,6 +2,25 @@ const express = require('express');
 const router = express.Router();
 const Notification = require('../models/Notification');
 const Broadcast = require('../models/Broadcast');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const uploadDir = path.join(__dirname, '../uploads/broadcasts');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'poster-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
 
 // Temporary simple auth check since we're keeping it aligned with admin
 // Depending on auth implementation, we might want to just get 'admin' notifications
@@ -78,38 +97,123 @@ router.get('/broadcasts/history', async (req, res) => {
   }
 });
 
+// GET /api/notifications/public/broadcast
+// Fetch latest public broadcast
+router.get('/public/broadcast', async (req, res) => {
+  try {
+    const broadcast = await Broadcast.findOne({ roles: 'website' }).sort({ createdAt: -1 });
+    res.json(broadcast);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
 // POST /api/notifications/broadcast
 // Broadcast notification to specific roles
-router.post('/broadcast', async (req, res) => {
+router.post('/broadcast', upload.single('poster'), async (req, res) => {
   try {
-    const { title, message, roles } = req.body;
-    if (!title || !message || !roles || !Array.isArray(roles)) {
-      return res.status(400).json({ message: 'Title, message, and an array of roles are required.' });
+    let { title, message, roles } = req.body;
+    
+    // Parse roles if it's sent as a string (from FormData)
+    if (typeof roles === 'string') {
+      try {
+        roles = JSON.parse(roles);
+      } catch (e) {
+        roles = roles.split(',');
+      }
     }
 
-    const User = require('../models/User');
-    const users = await User.find({ role: { $in: roles } });
+    if (!roles || !Array.isArray(roles)) {
+      return res.status(400).json({ message: 'An array of roles is required.' });
+    }
     
-    if (users.length === 0) {
+    if (!req.file && (!title || !message)) {
+      return res.status(400).json({ message: 'Either a poster or both title and message are required.' });
+    }
+    
+    const baseUrl = req.protocol + '://' + req.get('host');
+    const posterUrl = req.file ? `${baseUrl}/uploads/broadcasts/${req.file.filename}` : null;
+
+    const User = require('../models/User');
+    const userRoles = roles.filter(r => r !== 'website');
+    let users = [];
+    
+    if (userRoles.length > 0) {
+      users = await User.find({ role: { $in: userRoles } });
+    }
+    
+    if (userRoles.length > 0 && users.length === 0) {
       return res.status(404).json({ message: 'No users found for the selected roles.' });
     }
 
-    const notifications = users.map(user => ({
-      userId: user.userId,
-      title,
-      message,
-      unread: true,
-      time: 'Just now' // Simplified for immediate display
-    }));
+    if (users.length > 0) {
+      const notifications = users.map(user => ({
+        userId: user.userId,
+        title,
+        message,
+        unread: true,
+        time: 'Just now' // Simplified for immediate display
+      }));
+      await Notification.insertMany(notifications);
+    }
 
-    await Notification.insertMany(notifications);
-
-    const newBroadcast = new Broadcast({ title, message, roles });
+    const newBroadcast = new Broadcast({ title, message, roles, posterUrl });
     await newBroadcast.save();
 
-    res.json({ success: true, message: `Notification broadcasted to ${users.length} users.` });
+    res.json({ success: true, message: `Notification broadcasted to ${users.length} users and/or website.` });
   } catch (err) {
     console.error('Broadcast Error:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// PUT /api/notifications/broadcast/:id
+// Edit a broadcast
+router.put('/broadcast/:id', upload.single('poster'), async (req, res) => {
+  try {
+    let { title, message, roles } = req.body;
+    
+    // Parse roles if it's sent as a string (from FormData)
+    if (typeof roles === 'string') {
+      try {
+        roles = JSON.parse(roles);
+      } catch (e) {
+        roles = roles.split(',');
+      }
+    }
+
+    if (!roles || !Array.isArray(roles)) {
+      return res.status(400).json({ message: 'An array of roles is required.' });
+    }
+    
+    const updateData = { title, message, roles };
+    if (req.file) {
+      const baseUrl = req.protocol + '://' + req.get('host');
+      updateData.posterUrl = `${baseUrl}/uploads/broadcasts/${req.file.filename}`;
+    }
+    const updatedBroadcast = await Broadcast.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    );
+    if (!updatedBroadcast) return res.status(404).json({ message: 'Broadcast not found' });
+    res.json(updatedBroadcast);
+  } catch (err) {
+    console.error('Edit Broadcast Error:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+// DELETE /api/notifications/broadcast/:id
+// Delete a broadcast
+router.delete('/broadcast/:id', async (req, res) => {
+  try {
+    const deletedBroadcast = await Broadcast.findByIdAndDelete(req.params.id);
+    if (!deletedBroadcast) return res.status(404).json({ message: 'Broadcast not found' });
+    res.json({ success: true, message: 'Broadcast deleted successfully' });
+  } catch (err) {
+    console.error('Delete Broadcast Error:', err);
     res.status(500).json({ message: 'Server Error' });
   }
 });

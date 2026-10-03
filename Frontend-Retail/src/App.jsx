@@ -8,6 +8,7 @@ import { Toaster } from 'react-hot-toast';
 // --- Public Website Layout & Pages ---
 import Header from './Component/Layout/header';
 import Footer from './Component/Layout/footer';
+import WebsiteBroadcast from './Component/Layout/WebsiteBroadcast';
 import Homepage from './Pages/homepage';
 import About from './Pages/about';
 import Contact from './Pages/contact';
@@ -227,6 +228,7 @@ function App() {
           <Route path="*" element={
             <div className="app-container relative z-10 bg-transparent min-h-screen flex flex-col">
               <Header />
+              <WebsiteBroadcast />
 
               {/* Main Content Area */}
               <main className="main-content flex-grow">

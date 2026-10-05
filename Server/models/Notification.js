@@ -18,6 +18,11 @@ const notificationSchema = new mongoose.Schema({
     type: Boolean, 
     default: true 
   },
+  broadcastId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Broadcast',
+    required: false
+  },
   time: { 
     type: String 
   }, // Optional: pre-formatted time string if needed, or we can just use createdAt

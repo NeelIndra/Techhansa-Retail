@@ -46,7 +46,12 @@ app.use('/api/settings', verifyToken, settingsRoute);
 app.use('/api/inventory', verifyToken, inventoryRoute);
 app.use('/api/sales', verifyToken, salesRoute);
 app.use('/api/admin', verifyToken, adminRoute);
-app.use('/api/notifications', verifyToken, notificationsRoute);
+app.use('/api/notifications', (req, res, next) => {
+  if (req.path === '/public/broadcast') {
+    return next();
+  }
+  return verifyToken(req, res, next);
+}, notificationsRoute);
 app.use('/api/finance', verifyToken, financeRoute);
 app.use('/api/warehouse', verifyToken, warehouseRoute);
 

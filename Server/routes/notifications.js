@@ -147,19 +147,20 @@ router.post('/broadcast', upload.single('poster'), async (req, res) => {
       return res.status(404).json({ message: 'No users found for the selected roles.' });
     }
 
+    const newBroadcast = new Broadcast({ title, message, roles, posterUrl });
+    const savedBroadcast = await newBroadcast.save();
+
     if (users.length > 0) {
       const notifications = users.map(user => ({
         userId: user.userId,
         title,
         message,
         unread: true,
+        broadcastId: savedBroadcast._id,
         time: 'Just now' // Simplified for immediate display
       }));
       await Notification.insertMany(notifications);
     }
-
-    const newBroadcast = new Broadcast({ title, message, roles, posterUrl });
-    await newBroadcast.save();
 
     res.json({ success: true, message: `Notification broadcasted to ${users.length} users and/or website.` });
   } catch (err) {
@@ -191,11 +192,28 @@ router.put('/broadcast/:id', upload.single('poster'), async (req, res) => {
     if (req.file) {
       const baseUrl = req.protocol + '://' + req.get('host');
       updateData.posterUrl = `${baseUrl}/uploads/broadcasts/${req.file.filename}`;
+      
+      const oldBroadcast = await Broadcast.findById(req.params.id);
+      if (oldBroadcast && oldBroadcast.posterUrl) {
+        try {
+          const filename = oldBroadcast.posterUrl.split('/').pop();
+          const filePath = path.join(__dirname, '../uploads/broadcasts', filename);
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        } catch (err) {
+          console.error('Error deleting old poster file:', err);
+        }
+      }
     }
     const updatedBroadcast = await Broadcast.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true }
+    );
+
+    // Update associated notifications
+    await Notification.updateMany(
+      { broadcastId: req.params.id },
+      { $set: { title, message } }
     );
     if (!updatedBroadcast) return res.status(404).json({ message: 'Broadcast not found' });
     res.json(updatedBroadcast);
@@ -211,6 +229,21 @@ router.delete('/broadcast/:id', async (req, res) => {
   try {
     const deletedBroadcast = await Broadcast.findByIdAndDelete(req.params.id);
     if (!deletedBroadcast) return res.status(404).json({ message: 'Broadcast not found' });
+    
+    // Delete associated pop-up notifications for users
+    await Notification.deleteMany({ broadcastId: req.params.id });
+
+    // Remove the image file from disk
+    if (deletedBroadcast.posterUrl) {
+      try {
+        const filename = deletedBroadcast.posterUrl.split('/').pop();
+        const filePath = path.join(__dirname, '../uploads/broadcasts', filename);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch (err) {
+        console.error('Error deleting poster file:', err);
+      }
+    }
+
     res.json({ success: true, message: 'Broadcast deleted successfully' });
   } catch (err) {
     console.error('Delete Broadcast Error:', err);
